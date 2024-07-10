@@ -1,46 +1,103 @@
-# SPDX-License-Identifier: BSD-3-Clause
-
-# flake8: noqa F401
-from collections.abc import Callable
-
 import numpy as np
+from typing import Callable, List, Optional, Tuple
+import random
 
-from vendeeglobe import (
-    Checkpoint,
-    Heading,
-    Instructions,
-    Location,
-    Vector,
-    config,
-)
+from vendeeglobe import config
+from vendeeglobe.core import Checkpoint, Heading, Instructions, Location
 from vendeeglobe.utils import distance_on_surface
 
 
-class Bot:
-    """
-    This is the ship-controlling bot that will be instantiated for the competition.
-    """
+class Node:
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+        self.parent = None
 
+def rrt_path(current_position: Tuple[float, float], goal_position: Tuple[float, float]) -> Optional[Tuple[float, float]]:
+    def distance(p1: Node, p2: Node) -> float:
+        return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
+
+    def random_point() -> Node:
+        # Generate a random point within the map bounds
+        # You may need to adjust these bounds based on your world map
+        x = np.random.uniform(-180, 180)
+        y = np.random.uniform(-90, 90)
+        return Node(x, y)
+
+    def nearest_node(nodes: List[Node], point: Node) -> Node:
+        return min(nodes, key=lambda n: distance(n, point))
+
+    def steer(from_node: Node, to_node: Node, max_distance: float) -> Node:
+        d = distance(from_node, to_node)
+        if d > max_distance:
+            theta = np.arctan2(to_node.y - from_node.y, to_node.x - from_node.x)
+            x = from_node.x + max_distance * np.cos(theta)
+            y = from_node.y + max_distance * np.sin(theta)
+            return Node(x, y)
+        return to_node
+
+    def is_collision_free(node1: Node, node2: Node) -> bool:
+        # Implement collision checking using the world_map function
+        # This is a placeholder and needs to be implemented
+        return True
+
+    start_node = Node(current_position[0], current_position[1])
+    goal_node = Node(goal_position[0], goal_position[1])
+    nodes = [start_node]
+    max_iterations = 1000
+    step_size = 1.0  # Adjust based on your map scale
+
+    for _ in range(max_iterations):
+        rand_point = random_point()
+        nearest = nearest_node(nodes, rand_point)
+        new_node = steer(nearest, rand_point, step_size)
+        
+        if is_collision_free(nearest, new_node):
+            new_node.parent = nearest
+            nodes.append(new_node)
+            
+            if distance(new_node, goal_node) < step_size:
+                # Path found
+                path = []
+                current = new_node
+                while current.parent:
+                    path.append((current.x, current.y))
+                    current = current.parent
+                path.append((start_node.x, start_node.y))
+                path.reverse()
+                
+                if len(path) > 1:
+                    next_point = path[1]
+                    direction = (next_point[0] - current_position[0], 
+                                 next_point[1] - current_position[1])
+                    return direction
+    
+    return None  # No path found
+
+
+class Bot:
     def __init__(self):
-        self.team = "TeamName"  # This is your team name
-        # This is the course that the ship has to follow
+        self.team = "RRT"
         self.course = [
-            Checkpoint(latitude=43.797109, longitude=-11.264905, radius=50),
-            Checkpoint(longitude=-29.908577, latitude=17.999811, radius=50),
-            Checkpoint(latitude=-11.441808, longitude=-29.660252, radius=50),
-            Checkpoint(longitude=-63.240264, latitude=-61.025125, radius=50),
-            Checkpoint(latitude=2.806318, longitude=-168.943864, radius=1990.0),
-            Checkpoint(latitude=-62.052286, longitude=169.214572, radius=50.0),
-            Checkpoint(latitude=-15.668984, longitude=77.674694, radius=1190.0),
-            Checkpoint(latitude=-39.438937, longitude=19.836265, radius=50.0),
-            Checkpoint(latitude=14.881699, longitude=-21.024326, radius=50.0),
-            Checkpoint(latitude=44.076538, longitude=-18.292936, radius=50.0),
-            Checkpoint(
-                latitude=config.start.latitude,
-                longitude=config.start.longitude,
-                radius=5,
-            ),
-        ]
+                    Checkpoint(latitude=18.462766447612122, longitude=-68.10976042183249, radius=50),
+                    Checkpoint(latitude=17.222395178619355, longitude=-68.3989848264081, radius=50),
+                    Checkpoint(latitude=10.088911008694621, longitude=-80.29453551355418, radius=5),
+                    Checkpoint(latitude=8.676374405720495, longitude=-79.36526262255794, radius=5),
+                    Checkpoint(latitude=8.676374405720495, longitude=-79.36526262255794, radius=5),
+                    # after panama
+                    Checkpoint(latitude=7.107329354230183, longitude=-79.48386411964532, radius=5),
+                    Checkpoint(latitude=6.583764969268285, longitude=-80.64925346079656, radius=5),
+                    # Checkpoint 1?
+                    Checkpoint(latitude=2.806318, longitude=-168.943864, radius=1990.0),
+                    Checkpoint(latitude=9.0800, longitude=-79.6800, radius=50),
+                    Checkpoint(
+                        latitude=config.start.latitude,
+                        longitude=config.start.longitude,
+                        radius=5,
+                    ),
+                ]
+        
+        self.goal = []
 
     def run(
         self,
@@ -54,83 +111,26 @@ class Bot:
         forecast: Callable,
         world_map: Callable,
     ) -> Instructions:
-        """
-        This is the method that will be called at every time step to get the
-        instructions for the ship.
-
-        Parameters
-        ----------
-        t:
-            The current time in hours.
-        dt:
-            The time step in hours.
-        longitude:
-            The current longitude of the ship.
-        latitude:
-            The current latitude of the ship.
-        heading:
-            The current heading of the ship.
-        speed:
-            The current speed of the ship.
-        vector:
-            The current heading of the ship, expressed as a vector.
-        forecast:
-            Method to query the weather forecast for the next 5 days.
-            Example:
-            current_position_forecast = forecast(
-                latitudes=latitude, longitudes=longitude, times=0
-            )
-        world_map:
-            Method to query map of the world: 1 for sea, 0 for land.
-            Example:
-            current_position_terrain = world_map(
-                latitudes=latitude, longitudes=longitude
-            )
-
-        Returns
-        -------
-        instructions:
-            A set of instructions for the ship. This can be:
-            - a Location to go to
-            - a Heading to point to
-            - a Vector to follow
-            - a number of degrees to turn Left
-            - a number of degrees to turn Right
-
-            Optionally, a sail value between 0 and 1 can be set.
-        """
-        # Initialize the instructions
         instructions = Instructions()
-
-        # TODO: Remove this, it's only for testing =================
-        current_position_forecast = forecast(
-            latitudes=latitude, longitudes=longitude, times=0
-        )
-        current_position_terrain = world_map(latitudes=latitude, longitudes=longitude)
-        # ===========================================================
-
-        # Go through all checkpoints and find the next one to reach
-        for ch in self.course:
-            # Compute the distance to the checkpoint
-            dist = distance_on_surface(
-                longitude1=longitude,
-                latitude1=latitude,
-                longitude2=ch.longitude,
-                latitude2=ch.latitude,
-            )
-            # Consider slowing down if the checkpoint is close
-            jump = dt * np.linalg.norm(speed)
-            if dist < 2.0 * ch.radius + jump:
-                instructions.sail = min(ch.radius / jump, 1)
+        
+        # Find the next unreached checkpoint
+        next_checkpoint = next((ch for ch in self.course if not ch.reached), None)
+        
+        if next_checkpoint:
+            current_pos = (longitude, latitude)
+            goal_pos = (next_checkpoint.longitude, next_checkpoint.latitude)
+            
+            direction = rrt_path(current_pos, goal_pos)
+            
+            if direction:
+                # Convert direction to heading
+                new_heading = np.arctan2(direction[1], direction[0])
+                instructions.heading = Heading(np.degrees(new_heading) % 360)
             else:
-                instructions.sail = 1.0
-            # Check if the checkpoint has been reached
-            if dist < ch.radius:
-                ch.reached = True
-            if not ch.reached:
-                instructions.location = Location(
-                    longitude=ch.longitude, latitude=ch.latitude
-                )
-                break
-
+                # If no path found, fallback to direct route
+                instructions.location = Location(longitude=next_checkpoint.longitude, 
+                                                latitude=next_checkpoint.latitude)
+        
+        instructions.sail = 1.0  # Full sail by default
+        
         return instructions
