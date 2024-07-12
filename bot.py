@@ -23,25 +23,46 @@ class Bot:
 
     def __init__(self):
         self.team = "SonarVendee"  # This is your team name
-        # This is the course that the ship has to follow
         self.course = [
-            Checkpoint(latitude=18.462766447612122, longitude=-68.10976042183249, radius=50),
-            Checkpoint(latitude=17.222395178619355, longitude=-68.3989848264081, radius=50),
-            Checkpoint(latitude=10.088911008694621, longitude=-80.29453551355418, radius=5),
-            Checkpoint(latitude=8.676374405720495, longitude=-79.36526262255794, radius=5),
-            Checkpoint(latitude=8.676374405720495, longitude=-79.36526262255794, radius=5),
-            # after Panama
-            Checkpoint(latitude=7.107329354230183, longitude=-79.48386411964532, radius=5),
-            Checkpoint(latitude=6.583764969268285, longitude=-80.64925346079656, radius=5),
-            # Checkpoint 1
-            Checkpoint(latitude=2.806318, longitude=-168.943864, radius=1990.0),
+            Checkpoint(latitude=47.197942594203916, longitude=-9.169403579504642, radius=50),
+
+            Checkpoint(latitude=58.95165241742833, longitude=-52.89744360710141, radius=50),
+            Checkpoint(latitude=69.8709884582048, longitude=-60.98338106650846, radius=50),
+            Checkpoint(latitude=74.23674388960148, longitude=-75.57322474326467, radius=50),
+            Checkpoint(latitude=74.17855297867567, longitude=-90.39165705628501, radius=50),
+            # Part 2
+            Checkpoint(latitude=74.38348380993342, longitude=-92.036196394819, radius=50),
+            Checkpoint(latitude=74.33662921432835, longitude=-94.41891964096959, radius=50),
+            Checkpoint(latitude=74.33483234173502, longitude=-97.88878428845919, radius=50),
+            Checkpoint(latitude=74.56718603322253, longitude=-99.88243839278059, radius=50),
+
+            Checkpoint(latitude=73.96792966946977, longitude=-113.92469720338893, radius=5),
+            Checkpoint(latitude=75.24424400442808, longitude=-125.01981521992485, radius=5),
+
+            Checkpoint(latitude=72.45254474089015, longitude=-128.32639874145934, radius=5),
+            Checkpoint(latitude=70.76258454578803, longitude=-130.74896646950896, radius=5),
+            # Beaufort
+            Checkpoint(latitude=70.17782624628336, longitude=-140.5161495333721, radius=5),
+            Checkpoint(latitude=71.53250684339804, longitude=-155.055755226562, radius=5),
+
+            # Out of ice
+
+            Checkpoint(latitude=70.99321268200681, longitude=-168.6924898862142, radius=50),
+            # Checkpoint(latitude=66.109528309295,   longitude=-168.79539477667726, radius=50),
+            # Diomede
+            Checkpoint(latitude=65.7374390789708, longitude=-168.51149130625583, radius=50),
+            # St Lawrence
+            Checkpoint(latitude=63.11541756604175, longitude=-167.8427966130406, radius=50),
+            Checkpoint(latitude=60.23898250534194, longitude=-171.29089811272792, radius=50),
+            # Atka
+            Checkpoint(latitude=52.41485604173362, longitude=-171.79266018799007, radius=20),
+
+            # Checkpoint 1 (not needed anymore)
+            # Checkpoint(latitude=2.806318, longitude=-168.943864, radius=1990.0),
+            # Checkpoint(latitude=-3.0818639154250973, longitude=-148.41895620946707, radius=50),
             # Pacific traverse
             # Samoa
             Checkpoint(latitude=-14.541275955922021, longitude=-167.85683625199763, radius=50),
-            # Fidji
-            #Checkpoint(latitude=-19.163364543766544, longitude=-176.28392251307213, radius=50),
-            # Australia?
-            #Checkpoint(latitude=-43.26040352398038, longitude=150.33252175615877, radius=50),
             # South Tasmania
             Checkpoint(latitude=-47.26099388314912, longitude=144.81303151983454, radius=50),
             # Checkpoint 2
@@ -68,8 +89,10 @@ class Bot:
             Checkpoint(latitude=36.031916008449734, longitude=-4.306423912720327, radius=5),
             # After Gibraltar
             Checkpoint(latitude=35.92765496409566, longitude=-6.373354034830671, radius=5),
-            # Portugal
+            # Portugal 1
             Checkpoint(latitude=36.896350644999686, longitude=-9.467894938988914, radius=5),
+            # Portugal 2
+            Checkpoint(latitude=38.67414010310592, longitude=-10.544215264829893, radius=5),
             # Spain North
             Checkpoint(latitude=43.70603724998247, longitude=-9.794633652008832, radius=5),
             # Return
@@ -139,41 +162,7 @@ class Bot:
         """
         # Initialize the instructions
         instructions = Instructions()
-
-        # TODO: Remove this, it's only for testing =================
-        current_position_forecast = forecast(
-            latitudes=latitude, longitudes=longitude, times=0
-        )
-        current_position_terrain = world_map(latitudes=latitude, longitudes=longitude)
-        # ===========================================================
-        target_checkpoint: Checkpoint = self.get_target_checkpoint(latitude, longitude)
-
         # Go through all checkpoints and find the next one to reach
-        follow_the_wind = True
-        search_grid = create_grid(
-            start_lat=latitude,
-            start_lon=longitude,
-            end_lat=target_checkpoint.latitude,
-            end_lon=target_checkpoint.longitude,
-            deviation=5.0,
-            num_points=100
-        )
-        #plot_grid(search_grid)
-        def wind_speed_function(lat, lon):
-            return forecast(latitudes=lat, longitudes=lon, times=0)
-        wind_grid = create_wind_speed_grid(search_grid, wind_speed_function)
-        if follow_the_wind:
-            #instructions.vector = Vector(current_position_forecast[0], current_position_forecast[1])
-            f1 = wind_force(vector, vector)
-            f2 = wind_force(vector, np.array(current_position_forecast))
-            heading_to_target = goto(Location(latitude=latitude, longitude=longitude), target_checkpoint)
-            print(speed)
-            vector_to_target = heading_to_vector(heading_to_target)
-            instructions.sail = 1.0
-            instructions.vector = Vector(vector_to_target[0], vector_to_target[1])
-
-            return instructions
-
         for ch in self.course:
             # Compute the distance to the checkpoint
             dist = distance_on_surface(
@@ -183,11 +172,7 @@ class Bot:
                 latitude2=ch.latitude,
             )
             # Consider slowing down if the checkpoint is close
-            jump = dt * np.linalg.norm(speed)
-            if dist < 2.0 * ch.radius + jump:
-                instructions.sail = min(ch.radius / jump, 1)
-            else:
-                instructions.sail = 1.0
+            instructions.sail = 1.0
             # Check if the checkpoint has been reached
             if dist < ch.radius:
                 ch.reached = True
@@ -198,101 +183,3 @@ class Bot:
                 break
 
         return instructions
-
-    def get_target_checkpoint(self, latitude, longitude):
-        for ch in self.course:
-            dist = distance_on_surface(
-                longitude1=longitude,
-                latitude1=latitude,
-                longitude2=ch.longitude,
-                latitude2=ch.latitude,
-            )
-            if dist < ch.radius:
-                ch.reached = True
-            if not ch.reached:
-                return ch
-
-
-def heading_to_vector(heading_degrees):
-    # Convert heading from degrees to radians
-    heading_radians = np.radians(heading_degrees)
-
-    # Calculate the x and y components of the vector
-    x = np.cos(heading_radians)
-    y = np.sin(heading_radians)
-
-    # Create a vector from the x and y components
-    vector = np.array([x, y])
-
-    return vector
-
-
-def create_grid(start_lat, start_lon, end_lat, end_lon, num_points, deviation):
-    # Create arrays of latitudes and longitudes between the start and end points
-    latitudes = np.linspace(start_lat - deviation, end_lat + deviation, num_points)
-    longitudes = np.linspace(start_lon - deviation, end_lon + deviation, num_points)
-
-    # Create a grid of points around the straight line path
-    grid_lat, grid_lon = np.meshgrid(latitudes, longitudes)
-    grid = np.dstack((grid_lat, grid_lon))
-
-    return grid
-
-
-def create_wind_speed_grid(grid, wind_speed_function):
-    # Get the shape of the grid
-    shape = grid.shape
-
-    # Create an empty grid of the same shape to store the wind speeds
-    wind_speed_grid = np.empty(shape)
-
-    # Iterate over the grid and calculate the wind speed at each point
-    for i in range(shape[0]):
-        for j in range(shape[1]):
-            # Get the latitude and longitude of the current point
-            lat, lon = grid[i, j]
-
-            # Calculate the wind speed at the current point
-            wind_speed = wind_speed_function(lat, lon)
-
-            # Store the wind speed in the wind speed grid
-            wind_speed_grid[i, j] = np.array(wind_speed)
-
-    return wind_speed_grid
-
-
-# Example usage:
-def wind_speed_function(lat, lon):
-    # This is a placeholder function. Replace it with your actual function.
-    return lat + lon
-
-
-def interpolate_points(point1, point2, num_steps):
-    # Unpack the coordinates
-    lat1, lon1 = point1
-    lat2, lon2 = point2
-
-    # Create arrays for the latitudes and longitudes
-    latitudes = np.linspace(lat1, lat2, num_steps)
-    longitudes = np.linspace(lon1, lon2, num_steps)
-
-    return np.stack([latitudes, longitudes], axis=-1)
-
-
-# def create_grid(path, num_steps):
-#     # Compute the minimum and maximum latitudes and longitudes
-#     min_lat = np.min(path[:, 0])
-#     max_lat = np.max(path[:, 0])
-#     min_lon = np.min(path[:, 1])
-#     max_lon = np.max(path[:, 1])
-#
-#     # Compute the step sizes
-#     lat_step = (max_lat - min_lat) / num_steps
-#     lon_step = (max_lon - min_lon) / num_steps
-#
-#     # Create the grid
-#     latitudes = np.arange(min_lat, max_lat + lat_step, lat_step)
-#     longitudes = np.arange(min_lon, max_lon + lon_step, lon_step)
-#     grid = np.meshgrid(latitudes, longitudes)
-#
-#     return grid
